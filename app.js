@@ -36,15 +36,20 @@ window.signup = async function () {
   try {
     const user = await createUserWithEmailAndPassword(auth, email, password);
 
-    // Add user to Firestore
-    await setDoc(doc(db, "users", user.user.uid), {
-      role: "pending",
-      createdAt: Date.now()
-    });
+    // Try to create Firestore document
+    try {
+      await setDoc(doc(db, "users", user.user.uid), {
+        role: "pending",
+        createdAt: Date.now()
+      });
+      alert("Sign Up successful! Wait for approval.");
+    } catch (firestoreErr) {
+      console.error("Firestore error:", firestoreErr);
+      alert("Sign Up succeeded but failed to create Firestore record. Check your Firestore rules!");
+    }
 
-    alert("Sign Up successful! Wait for approval.");
   } catch (err) {
-    alert("Error: " + err.message);
+    alert("Sign Up error: " + err.message);
   }
 };
 
@@ -56,7 +61,7 @@ window.login = async function () {
   try {
     await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
-    alert("Error: " + err.message);
+    alert("Login error: " + err.message);
   }
 };
 
@@ -85,7 +90,7 @@ async function checkUser(user) {
   const data = snap.data();
 
   if (!data) {
-    // If user exists in Auth but no Firestore doc yet
+    // If user exists in Auth but Firestore doc not created
     pendingBox.style.display = "block";
     return;
   }
