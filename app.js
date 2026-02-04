@@ -18,7 +18,7 @@ import {
   updateDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-/* 🔥 YOUR FIREBASE CONFIG */
+/* 🔥 FIREBASE CONFIG */
 const firebaseConfig = {
   apiKey: "AIzaSyD6rzXchnhijiz1pmNGS-tyvuUmMLR3RNc",
   authDomain: "school-app-64768.firebaseapp.com",
@@ -45,6 +45,7 @@ window.signup = async function () {
     await setDoc(doc(db, "users", user.user.uid), {
       role: "pending",
       email: email,
+      status: "active",
       createdAt: Date.now()
     });
     alert("Sign up successful! Wait for approval.");
@@ -59,7 +60,15 @@ window.login = async function () {
   const password = document.getElementById("password").value;
 
   try {
-    await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+
+    // Check if user is banned
+    const snap = await getDoc(doc(db, "users", userCredential.user.uid));
+    const data = snap.data();
+    if (data.status === "banned") {
+      alert("Your account is banned!");
+      await signOut(auth);
+    }
   } catch (error) {
     alert("Error logging in: " + error.message);
   }
@@ -76,7 +85,6 @@ async function checkUser(user) {
   const pendingBox = document.getElementById("pendingBox");
   const appBox = document.getElementById("appBox");
 
-  // Hide everything
   loginBox.style.display = "none";
   pendingBox.style.display = "none";
   appBox.style.display = "none";
@@ -112,7 +120,7 @@ window.showTab = function (tabId) {
   }
 };
 
-/* ——— ADMIN PANEL ——— */
+/* ——— ADMIN PANEL FUNCTIONS ——— */
 
 async function loadPendingUsers() {
   const currentUser = auth.currentUser;
@@ -126,12 +134,11 @@ async function loadPendingUsers() {
     return;
   }
 
-  // Query users with role "pending"
-  const q = query(collection(db, "users"), where("role", "==", "pending"));
+  const q = query(collection(db, "users"));
   const querySnapshot = await getDocs(q);
 
   if (querySnapshot.empty) {
-    document.getElementById("pendingUsersList").innerText = "No pending users.";
+    document.getElementById("pendingUsersList").innerText = "No users found.";
     return;
   }
 
@@ -141,9 +148,14 @@ async function loadPendingUsers() {
     html += `
       <li>
         ${user.email || docSnap.id} 
-        <button onclick="approveUser('${docSnap.id}')">Approve</button> 
-        <button onclick="denyUser('${docSnap.id}')">Deny</button>
+        [Role: ${user.role || "user"}] 
+        [Status: ${user.status || "active"}] <br>
+        ${user.role === "pending" ? `<button onclick="approveUser('${docSnap.id}')">Approve</button>
+        <button onclick="denyUser('${docSnap.id}')">Deny</button>` : ""}
+        ${user.role !== "owner" ? `<button onclick="toggleAdmin('${docSnap.id}', '${user.role}')">Toggle Admin</button>` : ""}
+        <button onclick="toggleBan('${docSnap.id}', '${user.status || "active"}')">${user.status === "banned" ? "Unban" : "Ban"}</button>
       </li>
+      <hr>
     `;
   });
   html += "</ul>";
@@ -158,8 +170,29 @@ window.approveUser = async function (userId) {
 };
 
 window.denyUser = async function (userId) {
-  // Option: Mark as denied instead of deleting user doc
   await updateDoc(doc(db, "users", userId), { role: "denied" });
   alert("User denied!");
+  loadPendingUsers();
+};
+
+window.toggleAdmin = async function(userId, currentRole) {
+  if (currentRole === "admin") {
+    await updateDoc(doc(db, "users", userId), { role: "user" });
+    alert("Admin rights removed.");
+  } else if (currentRole === "user") {
+    await updateDoc(doc(db, "users", userId), { role: "admin" });
+    alert("User promoted to admin.");
+  }
+  loadPendingUsers();
+};
+
+window.toggleBan = async function(userId, currentStatus) {
+  if (currentStatus === "banned") {
+    await updateDoc(doc(db, "users", userId), { status: "active" });
+    alert("User unbanned.");
+  } else {
+    await updateDoc(doc(db, "users", userId), { status: "banned" });
+    alert("User banned.");
+  }
   loadPendingUsers();
 };
