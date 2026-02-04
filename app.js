@@ -13,7 +13,7 @@ import {
   getDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-/* 🔥 YOUR FIREBASE CONFIG */
+/* 🔥 FIREBASE CONFIG */
 const firebaseConfig = {
   apiKey: "AIzaSyD6rzXchnhijiz1pmNGS-tyvuUmMLR3RNc",
   authDomain: "school-app-64768.firebaseapp.com",
@@ -23,7 +23,7 @@ const firebaseConfig = {
   appId: "1:721039136368:web:cba66a0677cd88a220c6b5"
 };
 
-/* 🔌 CONNECT TO FIREBASE */
+/* 🔌 INIT FIREBASE */
 const app = initializeApp(firebaseConfig);
 const auth = getAuth();
 const db = getFirestore();
@@ -36,15 +36,15 @@ window.signup = async function () {
   try {
     const user = await createUserWithEmailAndPassword(auth, email, password);
 
-    // Create user in database
+    // Add user to Firestore
     await setDoc(doc(db, "users", user.user.uid), {
       role: "pending",
       createdAt: Date.now()
     });
 
-    alert("Sign Up successful! Wait for approval."); // simple feedback
+    alert("Sign Up successful! Wait for approval.");
   } catch (err) {
-    alert(err.message); // show error if signup fails
+    alert("Error: " + err.message);
   }
 };
 
@@ -56,7 +56,7 @@ window.login = async function () {
   try {
     await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
-    alert(err.message); // show error if login fails
+    alert("Error: " + err.message);
   }
 };
 
@@ -71,7 +71,7 @@ async function checkUser(user) {
   const pendingBox = document.getElementById("pendingBox");
   const appBox = document.getElementById("appBox");
 
-  // Hide everything
+  // Hide all sections
   loginBox.style.display = "none";
   pendingBox.style.display = "none";
   appBox.style.display = "none";
@@ -85,7 +85,7 @@ async function checkUser(user) {
   const data = snap.data();
 
   if (!data) {
-    // User exists in Auth but not in Firestore
+    // If user exists in Auth but no Firestore doc yet
     pendingBox.style.display = "block";
     return;
   }
