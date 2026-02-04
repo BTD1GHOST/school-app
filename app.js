@@ -258,6 +258,7 @@ window.approveUser = async function(uid) {
   loadAdminPanel();
 };
 
+
 window.banUser = async function(uid) {
   await updateDoc(doc(db, "users", uid), { status: "banned" });
   loadAdminPanel();
