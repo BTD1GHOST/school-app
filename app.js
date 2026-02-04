@@ -48,10 +48,11 @@ window.signup = async function() {
 
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
+  // ✅ Correct roles and statuses
   await setDoc(doc(db, "users", userCredential.user.uid), {
     email: email,
-    role: "user",
-    status: "pending",
+    role: "user",       // default role
+    status: "pending",  // pending approval
     createdAt: Date.now()
   });
 
@@ -240,74 +241,6 @@ window.sendChatMessage = async function() {
   loadChatMessages();
 };
 
-async function loadChatMessages() {
-  const chatDiv = document.getElementById("chatMessages");
-  chatDiv.innerHTML = "Loading...";
-  const snap = await getDocs(query(collection(db, "chatMessages"), orderBy("createdAt")));
-  const currentUserSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
-  const currentUserData = currentUserSnap.data();
-  const isAdmin = currentUserData.role === "admin" || currentUserData.role === "owner";
-
-  let html = "<ul>";
-  snap.forEach(docSnap => {
-    const msg = docSnap.data();
-    if (msg.status === "approved" || isAdmin) {
-      html += `<li>
-        <b>${msg.authorEmail}</b>: ${msg.text || ""} <br>
-        ${msg.fileURL ? `<img src="${msg.fileURL}" style="max-width:150px; cursor:pointer;" onclick="showFullChatImage('${docSnap.id}')">` : ""}
-        ${isAdmin && msg.status === "pending" ? `<br>
-        <button onclick="approveChatImage('${docSnap.id}'); event.stopPropagation();">Approve</button>
-        <button onclick="denyChatImage('${docSnap.id}'); event.stopPropagation();">Deny</button>` : ""}
-        ${isAdmin ? `<button onclick="deleteChatMessage('${docSnap.id}'); event.stopPropagation();">Delete</button>` : ""}
-      </li><hr>`;
-    }
-  });
-  html += "</ul>";
-  chatDiv.innerHTML = html;
-}
-
-window.showFullChatImage = async function(msgId) {
-  const msgSnap = await getDoc(doc(db, "chatMessages", msgId));
-  const msg = msgSnap.data();
-  if (!msg || !msg.fileURL) return;
-
-  const modal = document.createElement("div");
-  modal.id = "fullChatImageModal";
-  modal.style.position = "fixed";
-  modal.style.top = 0;
-  modal.style.left = 0;
-  modal.style.width = "100%";
-  modal.style.height = "100%";
-  modal.style.backgroundColor = "rgba(0,0,0,0.8)";
-  modal.style.display = "flex";
-  modal.style.alignItems = "center";
-  modal.style.justifyContent = "center";
-  modal.style.zIndex = 9999;
-  modal.innerHTML = `<img src="${msg.fileURL}" style="max-width:90%; max-height:80vh;">
-                     <br><button onclick="closeFullChatImage()">Close</button>`;
-  document.body.appendChild(modal);
-};
-
-window.closeFullChatImage = function() {
-  const modal = document.getElementById("fullChatImageModal");
-  if (modal) modal.remove();
-};
-
-window.approveChatImage = async function(msgId) {
-  await updateDoc(doc(db, "chatMessages", msgId), { status: "approved" });
-  loadChatMessages();
-};
-
-window.denyChatImage = async function(msgId) {
-  await updateDoc(doc(db, "chatMessages", msgId), { status: "denied" });
-  loadChatMessages();
-};
-
-window.deleteChatMessage = async function(msgId) {
-  await updateDoc(doc(db, "chatMessages", msgId), { status: "deleted" });
-  loadChatMessages();
-};
-
 /* ——— ADMIN PANEL ——— */
 async function loadPendingUsers() {
   const listDiv = document.getElementById("pendingUsersList");
@@ -340,7 +273,7 @@ window.banUser = async function(uid) {
 window.makeAdmin = async function(uid) {
   await updateDoc(doc(db, "users", uid), { 
     role: "admin",
-    status: "approved" // ✅ auto-approve admins
+    status: "approved"  // ✅ auto-approve admins
   });
   loadPendingUsers();
 };
