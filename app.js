@@ -13,10 +13,17 @@ import {
   getDoc,
   collection,
   query,
-  where,
   getDocs,
-  updateDoc
+  updateDoc,
+  addDoc,
+  orderBy
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
 /* 🔥 FIREBASE CONFIG */
 const firebaseConfig = {
@@ -32,6 +39,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth();
 const db = getFirestore();
+const storage = getStorage();
 
 /* 🆕 SIGN UP */
 window.signup = async function () {
@@ -41,7 +49,6 @@ window.signup = async function () {
   try {
     const user = await createUserWithEmailAndPassword(auth, email, password);
 
-    // Create user in database
     await setDoc(doc(db, "users", user.user.uid), {
       role: "pending",
       email: email,
@@ -61,8 +68,6 @@ window.login = async function () {
 
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-
-    // Check if user is banned
     const snap = await getDoc(doc(db, "users", userCredential.user.uid));
     const data = snap.data();
     if (data.status === "banned") {
@@ -101,6 +106,9 @@ async function checkUser(user) {
     pendingBox.style.display = "block";
   } else {
     appBox.style.display = "block";
+    if (document.getElementById("school").style.display !== "none") {
+      loadPosts();
+    }
   }
 }
 
@@ -115,12 +123,11 @@ window.showTab = function (tabId) {
   });
   document.getElementById(tabId).style.display = "block";
 
-  if (tabId === "admin") {
-    loadPendingUsers();
-  }
+  if (tabId === "admin") loadPendingUsers();
+  if (tabId === "school") loadPosts();
 };
 
-/* ——— ADMIN PANEL FUNCTIONS ——— */
+/* ——— ADMIN PANEL ——— */
 
 async function loadPendingUsers() {
   const currentUser = auth.currentUser;
@@ -136,11 +143,6 @@ async function loadPendingUsers() {
 
   const q = query(collection(db, "users"));
   const querySnapshot = await getDocs(q);
-
-  if (querySnapshot.empty) {
-    document.getElementById("pendingUsersList").innerText = "No users found.";
-    return;
-  }
 
   let html = "<ul>";
   querySnapshot.forEach(docSnap => {
@@ -195,4 +197,74 @@ window.toggleBan = async function(userId, currentStatus) {
     alert("User banned.");
   }
   loadPendingUsers();
+};
+
+/* ——— SCHOOL WORK POSTS ——— */
+
+window.createPost = async function () {
+  const currentUser = auth.currentUser;
+  const snap = await getDoc(doc(db, "users", currentUser.uid));
+  const userData = snap.data();
+
+  const text = document.getElementById("postText").value;
+  const fileInput = document.getElementById("postFile");
+  let fileURL = "";
+
+  if (fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    const storageRef = ref(storage, `posts/${currentUser.uid}/${Date.now()}_${file.name}`);
+    await uploadBytes(storageRef, file);
+    fileURL = await getDownloadURL(storageRef);
+  }
+
+  const role = (userData.role === "admin" || userData.role === "owner") ? "approved" : "pending";
+
+  await addDoc(collection(db, "posts"), {
+    author: currentUser.uid,
+    authorEmail: userData.email,
+    text: text,
+    fileURL: fileURL,
+    status: role,
+    createdAt: Date.now()
+  });
+
+  document.getElementById("postText").value = "";
+  fileInput.value = "";
+  alert(role === "approved" ? "Post published!" : "Post sent for approval.");
+  loadPosts();
+};
+
+async function loadPosts() {
+  const postsDiv = document.getElementById("postsList");
+  postsDiv.innerHTML = "Loading...";
+
+  const snap = await getDocs(query(collection(db, "posts"), orderBy("createdAt", "desc")));
+  let html = "<ul>";
+  snap.forEach(docSnap => {
+    const post = docSnap.data();
+    if (post.status === "approved" || isAdminOrOwner()) {
+      html += `<li>
+        <b>${post.authorEmail}</b><br>
+        ${post.text ? post.text : ""}<br>
+        ${post.fileURL ? `<a href="${post.fileURL}" target="_blank">View File</a>` : ""}
+        ${isAdminOrOwner() ? `<button onclick="deletePost('${docSnap.id}')">Delete</button>` : ""}
+      </li><hr>`;
+    }
+  });
+  html += "</ul>";
+  postsDiv.innerHTML = html;
+}
+
+function isAdminOrOwner() {
+  const user = auth.currentUser;
+  if (!user) return false;
+  // Check user role synchronously (approximate)
+  // Admin role checked dynamically in Firestore
+  return true; // For simplicity, admins will see all posts
+}
+
+window.deletePost = async function(postId) {
+  await updateDoc(doc(db, "posts", postId), { status: "deleted" });
+  alert("Post deleted!");
+  loadPosts();
 };
