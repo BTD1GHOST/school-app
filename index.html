@@ -33,6 +33,7 @@
   <button onclick="showTab('media')">Shared Media</button>
   <button onclick="showTab('boys')">The Boys</button>
   <button onclick="showTab('info')">Info</button>
+  <button onclick="showTab('admin')">Admin Panel</button>
 
   <div id="school" style="display:none;">
     <h3>School Work</h3>
@@ -54,9 +55,19 @@
     <p>Folders coming soon</p>
   </div>
 
+  <div id="admin" style="display:none;">
+    <h3>Admin Panel - Pending Users</h3>
+    <div id="pendingUsersList">Loading pending users...</div>
+  </div>
+
   <br>
   <button onclick="logout()">Logout</button>
 </div>
+
+<!-- FIREBASE LIBRARIES -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
 
 <!-- YOUR SCRIPT -->
 <script type="module" src="app.js"></script>
