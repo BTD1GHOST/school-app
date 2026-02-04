@@ -1,30 +1,22 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>School App</title>
   <style>
-    /* Basic styling */
     #loginBox, #pendingBox, #appBox, #adminPanel {
       margin: 20px;
       padding: 15px;
       border: 1px solid #ccc;
     }
-    #adminPanel {
-      background: #f9f9f9;
-      margin-top: 40px;
-    }
-    .tab-content {
-      margin-top: 15px;
-      border-top: 1px solid #ddd;
-      padding-top: 15px;
-    }
+    #adminPanel { background: #f9f9f9; margin-top: 40px; }
+    .tab-content { margin-top: 15px; border-top: 1px solid #ddd; padding-top: 15px; }
   </style>
 </head>
 <body>
-
 <h1>School App</h1>
 
-<!-- LOGIN / SIGNUP -->
+<!-- LOGIN -->
 <div id="loginBox">
   <h2>Login or Sign Up</h2>
   <input id="email" placeholder="Email"><br><br>
@@ -33,7 +25,7 @@
   <button onclick="login()">Login</button>
 </div>
 
-<!-- PENDING APPROVAL -->
+<!-- PENDING -->
 <div id="pendingBox" style="display:none;">
   <h2>Your account is pending approval</h2>
   <p>Please wait for an admin.</p>
@@ -52,24 +44,18 @@
   <div id="school" class="tab-content" style="display:none;">
     <h3>School Work</h3>
     <div id="schoolContainer">Loading posts...</div>
-    <textarea id="schoolText" placeholder="Write post"></textarea><br>
-    <input id="schoolFile" type="file"><br>
-    <button onclick="createPost('school')">Post</button>
   </div>
 
   <div id="media" class="tab-content" style="display:none;">
     <h3>Shared Media</h3>
-    <div id="mediaContainer">Loading shared media...</div>
-    <textarea id="mediaText" placeholder="Write post"></textarea><br>
-    <input id="mediaFile" type="file"><br>
-    <button onclick="createPost('media')">Post</button>
+    <div id="mediaContainer">Loading posts...</div>
   </div>
 
   <div id="boys" class="tab-content" style="display:none;">
     <h3>The Boys</h3>
     <div id="boysContainer">Loading chat messages...</div>
-    <input id="boysMessageInput" placeholder="Type a message"><br>
-    <input id="boysFile" type="file"><br>
+    <input id="boysMessageInput" placeholder="Type a message">
+    <input type="file" id="boysFile">
     <button onclick="sendChatMessage()">Send</button>
   </div>
 
@@ -88,8 +74,7 @@
   <div id="adminUsers">Loading users...</div>
 </div>
 
-<!-- FIREBASE LIBRARIES -->
+<!-- FIREBASE -->
 <script type="module" src="app.js"></script>
-
 </body>
 </html>
