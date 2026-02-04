@@ -3,7 +3,30 @@
 <head>
   <title>School App</title>
 </head>
-<body>
+<<h1>School App</h1>
+
+<div id="loginBox">
+  <h2>Login / Sign Up</h2>
+
+  <input id="email" placeholder="Email"><br><br>
+  <input id="password" type="password" placeholder="Password"><br><br>
+
+  <button onclick="signup()">Sign Up</button>
+  <button onclick="login()">Login</button>
+</div>
+
+<div id="pendingBox" style="display:none;">
+  <h2>Your account is pending approval</h2>
+  <p>Please wait for an admin to approve you.</p>
+  <button onclick="logout()">Logout</button>
+</div>
+
+<div id="appBox" style="display:none;">
+  <h2>Welcome to the site</h2>
+  <p>You are approved 🎉</p>
+  <button onclick="logout()">Logout</button>
+</div>
+>
 
 <h1>School App</h1>
 
