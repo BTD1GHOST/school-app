@@ -226,7 +226,7 @@ window.sendChatMessage = async function() {
 /* ——— ADMIN PANEL ——— */
 async function loadAdminPanel() {
   const listDiv = document.getElementById("userList");
-  const snap = await getDocs(collection(db, "users"));
+  const snap = await getDocs(collection(db, "users")); // Fetch ALL users
   let html = "<ul>";
 
   snap.forEach(docSnap => {
@@ -247,6 +247,7 @@ async function loadAdminPanel() {
   html += "</ul>";
   listDiv.innerHTML = html;
 }
+
 
 /* ——— USER MANAGEMENT ——— */
 window.approveUser = async function(uid) {
