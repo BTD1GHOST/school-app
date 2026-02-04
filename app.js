@@ -49,7 +49,7 @@ window.signup = async function() {
 
   await setDoc(doc(db, "users", userCredential.user.uid), {
     email: email,
-    role: "pending",
+    role: "user",
     status: "pending",
     createdAt: Date.now()
   });
@@ -102,7 +102,25 @@ async function checkUser(user) {
   }
 }
 
-onAuthStateChanged(auth, checkUser);
+/* 🔄 AUTO-REFRESH FOR PENDING USERS */
+let pendingInterval;
+
+onAuthStateChanged(auth, async (user) => {
+  if (pendingInterval) clearInterval(pendingInterval);
+  checkUser(user);
+
+  if (user) {
+    const userRef = doc(db, "users", user.uid);
+    pendingInterval = setInterval(async () => {
+      const snap = await getDoc(userRef);
+      const data = snap.data();
+      if (data && data.status === "approved") {
+        clearInterval(pendingInterval);
+        checkUser(user);
+      }
+    }, 3000); // every 3 seconds
+  }
+});
 
 /* 🗂 TAB SWITCHING */
 window.showTab = function(tabId) {
