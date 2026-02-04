@@ -45,6 +45,7 @@ const storage = getStorage();
 window.signup = async function() {
   const email = document.getElementById("email").value;
   const password = document.getElementById("password").value;
+
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
   await setDoc(doc(db, "users", userCredential.user.uid), {
@@ -53,6 +54,7 @@ window.signup = async function() {
     status: "pending",
     createdAt: Date.now()
   });
+
   alert("Sign-up successful! Wait for admin approval.");
 };
 
@@ -60,6 +62,7 @@ window.signup = async function() {
 window.login = async function() {
   const email = document.getElementById("email").value;
   const password = document.getElementById("password").value;
+
   await signInWithEmailAndPassword(auth, email, password);
 };
 
@@ -118,7 +121,7 @@ onAuthStateChanged(auth, async (user) => {
         clearInterval(pendingInterval);
         checkUser(user);
       }
-    }, 3000); // every 3 seconds
+    }, 3000);
   }
 });
 
@@ -335,6 +338,9 @@ window.banUser = async function(uid) {
 };
 
 window.makeAdmin = async function(uid) {
-  await updateDoc(doc(db, "users", uid), { role: "admin" });
+  await updateDoc(doc(db, "users", uid), { 
+    role: "admin",
+    status: "approved" // ✅ auto-approve admins
+  });
   loadPendingUsers();
 };
