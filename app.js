@@ -89,6 +89,16 @@ async function checkUser(user) {
 
   const userSnap = await getDoc(doc(db, "users", user.uid));
   const userData = userSnap.data();
+const userSnap = await getDoc(doc(db, "users", currentUser.uid));
+const userData = userSnap.data();
+
+// Determine post status
+let status;
+if (userData.role === "admin" || userData.role === "owner") {
+  status = "approved"; // Admin posts auto-approved
+} else {
+  status = (fileURL) ? "pending" : "approved"; // Only files/images pending
+}
 
   if (!userData) {
     alert("User not found!");
