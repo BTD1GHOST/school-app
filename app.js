@@ -60,6 +60,10 @@ window.signup = async function() {
     });
 
     alert("Sign-up successful! Wait for admin approval.");
+
+    // ✅ Refresh admin panel so new user appears immediately
+    loadAdminPanel();
+
   } catch (err) {
     alert("Error: " + err.message);
   }
@@ -177,22 +181,34 @@ window.unbanUser = async function(uid) {
 window.changeRole = async function(uid, role) {
   await updateDoc(doc(db, "users", uid), { role: role, status: "approved" });
   loadAdminPanel();
-};
-/* ——— POST CREATION ——— */
+}
+
+/* ——— AUTO-REFRESH ADMIN PANEL EVERY 5 SECONDS ——— */
+setInterval(() => {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return;
+  getDoc(doc(db, "users", currentUser.uid)).then(userSnap => {
+    const data = userSnap.data();
+    if (data && (data.role === "admin" || data.role === "owner")) {
+      loadAdminPanel();
+    }
+  });
+}, 5000);
+/* ——— POST CREATION FOR SCHOOL WORK & SHARED MEDIA ——— */
 window.createPost = async function(tab) {
   const currentUser = auth.currentUser;
+  if (!currentUser) return alert("Not logged in.");
+
   const textInput = document.getElementById(tab + "Text");
   const fileInput = document.getElementById(tab + "File");
 
-  if (!currentUser) return alert("Not logged in.");
-
-  let text = textInput.value || "";
+  const text = textInput.value || "";
   let fileURL = "";
 
   // Upload file if exists
   if (fileInput.files.length > 0) {
     const file = fileInput.files[0];
-    const storageRef = ref(storage, `posts/${currentUser.uid}/${Date.now()}_${file.name}`);
+    const storageRef = ref(storage, `posts/${tab}/${currentUser.uid}/${Date.now()}_${file.name}`);
     await uploadBytes(storageRef, file);
     fileURL = await getDownloadURL(storageRef);
   }
@@ -206,11 +222,11 @@ window.createPost = async function(tab) {
   if (userData.role === "admin" || userData.role === "owner") {
     status = "approved"; // Admin posts auto-approved
   } else {
-    status = fileURL ? "pending" : "approved"; // Only images/files pending
+    status = fileURL ? "pending" : "approved"; // Only files/images require approval
   }
 
-  // Save post
-  await addDoc(collection(db, tab + "Posts"), {
+  // Save post to Firestore
+  await setDoc(doc(collection(db, tab + "Posts")), {
     author: currentUser.uid,
     authorEmail: userData.email,
     text: text,
@@ -219,9 +235,14 @@ window.createPost = async function(tab) {
     createdAt: Date.now()
   });
 
+  // Clear inputs
   textInput.value = "";
   fileInput.value = "";
+
   alert(status === "approved" ? "Post published!" : "Post sent for approval.");
+
+  // Refresh posts
+  loadPosts(tab);
 };
 
 /* ——— LOAD POSTS ——— */
@@ -233,9 +254,10 @@ async function loadPosts(tab) {
   snap.forEach(docSnap => {
     const p = docSnap.data();
     if (p.status === "approved") {
-      html += `<div>
+      html += `<div class="post">
         <strong>${p.authorEmail}</strong>: ${p.text || ""}
         ${p.fileURL ? `<a href="${p.fileURL}" target="_blank">[File]</a>` : ""}
+        ${p.status === "pending" ? "<em>(Pending)</em>" : ""}
       </div>`;
     }
   });
@@ -243,18 +265,34 @@ async function loadPosts(tab) {
   container.innerHTML = html;
 }
 
-/* ——— CHAT (The Boys) ——— */
+/* ——— ADMIN APPROVE / DELETE POSTS ——— */
+window.approvePost = async function(tab, postId) {
+  await updateDoc(doc(db, tab + "Posts", postId), { status: "approved" });
+  loadPosts(tab);
+};
+
+window.deletePost = async function(tab, postId) {
+  await deleteDoc(doc(db, tab + "Posts", postId));
+  loadPosts(tab);
+}
+
+/* ——— AUTO-REFRESH POSTS EVERY 3 SECONDS ——— */
+setInterval(() => {
+  loadPosts("school");
+  loadPosts("media");
+}, 3000);
+/* ——— THE BOYS CHAT SYSTEM ——— */
 window.sendChatMessage = async function() {
   const currentUser = auth.currentUser;
-  const input = document.getElementById("boysText");
-  const fileInput = document.getElementById("boysFile");
-
   if (!currentUser) return alert("Not logged in.");
 
-  let text = input.value || "";
+  const textInput = document.getElementById("boysText");
+  const fileInput = document.getElementById("boysFile");
+
+  const text = textInput.value || "";
   let fileURL = "";
 
-  // Upload image/file if any
+  // Upload image/file if exists
   if (fileInput.files.length > 0) {
     const file = fileInput.files[0];
     const storageRef = ref(storage, `chat/${currentUser.uid}/${Date.now()}_${file.name}`);
@@ -266,14 +304,18 @@ window.sendChatMessage = async function() {
   const userSnap = await getDoc(doc(db, "users", currentUser.uid));
   const userData = userSnap.data();
 
+  if (userData.status !== "approved") return alert("Your account is not approved yet.");
+
+  // Determine message status
   let status;
   if (userData.role === "admin" || userData.role === "owner") {
-    status = "approved"; // Admin images auto-approved
+    status = "approved"; // Admin messages auto-approved
   } else {
-    status = fileURL ? "pending" : "approved"; // Only images pending
+    status = fileURL ? "pending" : "approved"; // Only images need approval
   }
 
-  await addDoc(collection(db, "boysChat"), {
+  // Save message to Firestore
+  await setDoc(doc(collection(db, "boysChat")), {
     author: currentUser.uid,
     authorEmail: userData.email,
     text: text,
@@ -282,11 +324,18 @@ window.sendChatMessage = async function() {
     createdAt: Date.now()
   });
 
-  input.value = "";
+  // Clear inputs
+  textInput.value = "";
   fileInput.value = "";
+
+  if (status === "approved") {
+    loadChat();
+  } else {
+    alert("Image sent for approval.");
+  }
 };
 
-/* ——— LOAD CHAT ——— */
+/* ——— LOAD CHAT MESSAGES ——— */
 async function loadChat() {
   const container = document.getElementById("boysContainer");
   const snap = await getDocs(collection(db, "boysChat"));
@@ -295,9 +344,9 @@ async function loadChat() {
   snap.forEach(docSnap => {
     const c = docSnap.data();
     if (c.status === "approved") {
-      html += `<div>
+      html += `<div class="chatMessage">
         <strong>${c.authorEmail}</strong>: ${c.text || ""}
-        ${c.fileURL ? `<a href="${c.fileURL}" target="_blank">[File]</a>` : ""}
+        ${c.fileURL ? `<a href="${c.fileURL}" target="_blank">[Image/File]</a>` : ""}
       </div>`;
     }
   });
@@ -305,20 +354,26 @@ async function loadChat() {
   container.innerHTML = html;
 }
 
-/* ——— APPROVE POSTS (ADMIN) ——— */
-window.approvePost = async function(tab, postId) {
-  await updateDoc(doc(db, tab + "Posts", postId), { status: "approved" });
-  loadPosts(tab);
-};
-
-window.deletePost = async function(tab, postId) {
-  await deleteDoc(doc(db, tab + "Posts", postId));
-  loadPosts(tab);
-};
-
-/* ——— AUTOMATIC LOADING INTERVALS ——— */
-setInterval(() => {
-  loadPosts("school");
-  loadPosts("media");
+/* ——— ADMIN APPROVE / DELETE CHAT MESSAGES ——— */
+window.approveChatMessage = async function(postId) {
+  await updateDoc(doc(db, "boysChat", postId), { status: "approved" });
   loadChat();
-}, 3000); // reload every 3s
+};
+
+window.deleteChatMessage = async function(postId) {
+  await deleteDoc(doc(db, "boysChat", postId));
+  loadChat();
+}
+
+/* ——— AUTO-REFRESH CHAT AND ADMIN PANEL ——— */
+setInterval(() => {
+  loadChat();
+  const currentUser = auth.currentUser;
+  if (!currentUser) return;
+  getDoc(doc(db, "users", currentUser.uid)).then(userSnap => {
+    const data = userSnap.data();
+    if (data && (data.role === "admin" || data.role === "owner")) {
+      loadAdminPanel();
+    }
+  });
+}, 3000);
