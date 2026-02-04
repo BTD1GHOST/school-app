@@ -35,9 +35,17 @@
   <button onclick="showTab('info')">Info</button>
   <button onclick="showTab('admin')">Admin Panel</button>
 
+  <!-- SCHOOL WORK -->
   <div id="school" style="display:none;">
     <h3>School Work</h3>
-    <p>Coming soon</p>
+
+    <h4>Create Post</h4>
+    <textarea id="postText" placeholder="Write something..."></textarea><br><br>
+    <input type="file" id="postFile"><br><br>
+    <button onclick="createPost()">Upload Post</button>
+
+    <h4>All Posts</h4>
+    <div id="postsList">Loading posts...</div>
   </div>
 
   <div id="media" style="display:none;">
@@ -68,6 +76,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js"></script>
 
 <!-- YOUR SCRIPT -->
 <script type="module" src="app.js"></script>
