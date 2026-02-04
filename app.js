@@ -16,7 +16,8 @@ import {
   getDocs,
   updateDoc,
   addDoc,
-  orderBy
+  orderBy,
+  where
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import {
   getStorage,
@@ -48,7 +49,6 @@ window.signup = async function () {
 
   try {
     const user = await createUserWithEmailAndPassword(auth, email, password);
-
     await setDoc(doc(db, "users", user.user.uid), {
       role: "pending",
       email: email,
@@ -199,7 +199,7 @@ window.toggleBan = async function(userId, currentStatus) {
   loadPendingUsers();
 };
 
-/* ——— SCHOOL WORK POSTS ——— */
+/* ——— SCHOOL WORK POSTS WITH APPROVAL ——— */
 
 window.createPost = async function () {
   const currentUser = auth.currentUser;
@@ -217,20 +217,20 @@ window.createPost = async function () {
     fileURL = await getDownloadURL(storageRef);
   }
 
-  const role = (userData.role === "admin" || userData.role === "owner") ? "approved" : "pending";
+  const status = (userData.role === "admin" || userData.role === "owner") ? "approved" : "pending";
 
   await addDoc(collection(db, "posts"), {
     author: currentUser.uid,
     authorEmail: userData.email,
     text: text,
     fileURL: fileURL,
-    status: role,
+    status: status,
     createdAt: Date.now()
   });
 
   document.getElementById("postText").value = "";
   fileInput.value = "";
-  alert(role === "approved" ? "Post published!" : "Post sent for approval.");
+  alert(status === "approved" ? "Post published!" : "Post sent for approval.");
   loadPosts();
 };
 
@@ -240,14 +240,20 @@ async function loadPosts() {
 
   const snap = await getDocs(query(collection(db, "posts"), orderBy("createdAt", "desc")));
   let html = "<ul>";
+  const currentUserSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+  const currentUserData = currentUserSnap.data();
+  const isAdmin = currentUserData.role === "admin" || currentUserData.role === "owner";
+
   snap.forEach(docSnap => {
     const post = docSnap.data();
-    if (post.status === "approved" || isAdminOrOwner()) {
+    if (post.status === "approved" || isAdmin) {
       html += `<li>
         <b>${post.authorEmail}</b><br>
         ${post.text ? post.text : ""}<br>
-        ${post.fileURL ? `<a href="${post.fileURL}" target="_blank">View File</a>` : ""}
-        ${isAdminOrOwner() ? `<button onclick="deletePost('${docSnap.id}')">Delete</button>` : ""}
+        ${post.fileURL ? `<a href="${post.fileURL}" target="_blank">View File</a>` : ""}<br>
+        ${isAdmin && post.status === "pending" ? `<button onclick="approvePost('${docSnap.id}')">Approve</button>
+        <button onclick="denyPost('${docSnap.id}')">Deny</button>` : ""}
+        ${isAdmin ? `<button onclick="deletePost('${docSnap.id}')">Delete</button>` : ""}
       </li><hr>`;
     }
   });
@@ -255,13 +261,17 @@ async function loadPosts() {
   postsDiv.innerHTML = html;
 }
 
-function isAdminOrOwner() {
-  const user = auth.currentUser;
-  if (!user) return false;
-  // Check user role synchronously (approximate)
-  // Admin role checked dynamically in Firestore
-  return true; // For simplicity, admins will see all posts
-}
+window.approvePost = async function(postId) {
+  await updateDoc(doc(db, "posts", postId), { status: "approved" });
+  alert("Post approved!");
+  loadPosts();
+};
+
+window.denyPost = async function(postId) {
+  await updateDoc(doc(db, "posts", postId), { status: "denied" });
+  alert("Post denied!");
+  loadPosts();
+};
 
 window.deletePost = async function(postId) {
   await updateDoc(doc(db, "posts", postId), { status: "deleted" });
