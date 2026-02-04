@@ -11,11 +11,11 @@ import {
   doc,
   setDoc,
   getDoc,
-  collection,
-  query,
-  getDocs,
   updateDoc,
+  collection,
   addDoc,
+  getDocs,
+  query,
   orderBy
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import {
@@ -30,56 +30,41 @@ const firebaseConfig = {
   apiKey: "AIzaSyD6rzXchnhijiz1pmNGS-tyvuUmMLR3RNc",
   authDomain: "school-app-64768.firebaseapp.com",
   projectId: "school-app-64768",
-  storageBucket: "school-app-64768.firebasestorage.app",
+  storageBucket: "school-app-64768.appspot.com",
   messagingSenderId: "721039136368",
   appId: "1:721039136368:web:cba66a0677cd88a220c6b5"
 };
 
-/* 🔌 CONNECT TO FIREBASE */
+/* 🔌 INIT FIREBASE */
 const app = initializeApp(firebaseConfig);
 const auth = getAuth();
 const db = getFirestore();
 const storage = getStorage();
 
-/* 🆕 SIGN UP */
-window.signup = async function () {
+/* 🔐 SIGN UP */
+window.signup = async function() {
   const email = document.getElementById("email").value;
   const password = document.getElementById("password").value;
+  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
-  try {
-    const user = await createUserWithEmailAndPassword(auth, email, password);
-    await setDoc(doc(db, "users", user.user.uid), {
-      role: "pending",
-      email: email,
-      status: "active",
-      createdAt: Date.now()
-    });
-    alert("Sign up successful! Wait for approval.");
-  } catch (error) {
-    alert("Error signing up: " + error.message);
-  }
+  await setDoc(doc(db, "users", userCredential.user.uid), {
+    email: email,
+    role: "pending",
+    status: "pending",
+    createdAt: Date.now()
+  });
+  alert("Sign-up successful! Wait for admin approval.");
 };
 
 /* 🔐 LOGIN */
-window.login = async function () {
+window.login = async function() {
   const email = document.getElementById("email").value;
   const password = document.getElementById("password").value;
-
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const snap = await getDoc(doc(db, "users", userCredential.user.uid));
-    const data = snap.data();
-    if (data.status === "banned") {
-      alert("Your account is banned!");
-      await signOut(auth);
-    }
-  } catch (error) {
-    alert("Error logging in: " + error.message);
-  }
+  await signInWithEmailAndPassword(auth, email, password);
 };
 
 /* 🚪 LOGOUT */
-window.logout = async function () {
+window.logout = async function() {
   await signOut(auth);
 };
 
@@ -98,115 +83,44 @@ async function checkUser(user) {
     return;
   }
 
-  const snap = await getDoc(doc(db, "users", user.uid));
-  const data = snap.data();
-
-  if (!data || data.role === "pending") {
-    pendingBox.style.display = "block";
-  } else {
-    appBox.style.display = "block";
-    if (document.getElementById("school").style.display !== "none") loadPosts();
-    if (document.getElementById("media").style.display !== "none") loadMediaPosts();
-  }
-}
-
-/* 🔄 RUN WHEN LOGIN STATE CHANGES */
-onAuthStateChanged(auth, checkUser);
-
-/* 🗂 TAB SWITCHING */
-window.showTab = function (tabId) {
-  const tabs = ["school", "media", "boys", "info", "admin"];
-  tabs.forEach(id => {
-    document.getElementById(id).style.display = "none";
-  });
-  document.getElementById(tabId).style.display = "block";
-
-  if (tabId === "admin") loadPendingUsers();
-  if (tabId === "school") loadPosts();
-  if (tabId === "media") loadMediaPosts();
-};
-
-/* ——— ADMIN PANEL ——— */
-async function loadPendingUsers() {
-  const currentUser = auth.currentUser;
-  if (!currentUser) return;
-
-  const userSnap = await getDoc(doc(db, "users", currentUser.uid));
+  const userSnap = await getDoc(doc(db, "users", user.uid));
   const userData = userSnap.data();
 
-  if (!userData || (userData.role !== "admin" && userData.role !== "owner")) {
-    document.getElementById("pendingUsersList").innerText = "Access denied.";
+  if (!userData) {
+    alert("User not found!");
+    await signOut(auth);
     return;
   }
 
-  const q = query(collection(db, "users"));
-  const querySnapshot = await getDocs(q);
-
-  let html = "<ul>";
-  querySnapshot.forEach(docSnap => {
-    const user = docSnap.data();
-    html += `
-      <li>
-        ${user.email || docSnap.id} 
-        [Role: ${user.role || "user"}] 
-        [Status: ${user.status || "active"}] <br>
-        ${user.role === "pending" ? `<button onclick="approveUser('${docSnap.id}')">Approve</button>
-        <button onclick="denyUser('${docSnap.id}')">Deny</button>` : ""}
-        ${user.role !== "owner" ? `<button onclick="toggleAdmin('${docSnap.id}', '${user.role}')">Toggle Admin</button>` : ""}
-        <button onclick="toggleBan('${docSnap.id}', '${user.status || "active"}')">${user.status === "banned" ? "Unban" : "Ban"}</button>
-      </li>
-      <hr>
-    `;
-  });
-  html += "</ul>";
-
-  document.getElementById("pendingUsersList").innerHTML = html;
+  if (userData.status === "pending") {
+    pendingBox.style.display = "block";
+  } else if (userData.status === "banned") {
+    alert("You are banned.");
+    await signOut(auth);
+  } else {
+    appBox.style.display = "block";
+  }
 }
 
-window.approveUser = async function (userId) {
-  await updateDoc(doc(db, "users", userId), { role: "user" });
-  alert("User approved!");
-  loadPendingUsers();
-};
+onAuthStateChanged(auth, checkUser);
 
-window.denyUser = async function (userId) {
-  await updateDoc(doc(db, "users", userId), { role: "denied" });
-  alert("User denied!");
-  loadPendingUsers();
-};
+/* 🗂 TAB SWITCHING */
+window.showTab = function(tabId) {
+  const tabs = ["school", "media", "boys", "info", "admin"];
+  tabs.forEach(t => document.getElementById(t).style.display = "none");
+  document.getElementById(tabId).style.display = "block";
 
-window.toggleAdmin = async function(userId, currentRole) {
-  if (currentRole === "admin") {
-    await updateDoc(doc(db, "users", userId), { role: "user" });
-    alert("Admin rights removed.");
-  } else if (currentRole === "user") {
-    await updateDoc(doc(db, "users", userId), { role: "admin" });
-    alert("User promoted to admin.");
-  }
-  loadPendingUsers();
-};
-
-window.toggleBan = async function(userId, currentStatus) {
-  if (currentStatus === "banned") {
-    await updateDoc(doc(db, "users", userId), { status: "active" });
-    alert("User unbanned.");
-  } else {
-    await updateDoc(doc(db, "users", userId), { status: "banned" });
-    alert("User banned.");
-  }
-  loadPendingUsers();
+  if (tabId === "boys") loadChatMessages();
+  if (tabId === "admin") loadPendingUsers();
 };
 
 /* ——— SCHOOL WORK POSTS ——— */
-window.createPost = async function () {
-  const currentUser = auth.currentUser;
-  const snap = await getDoc(doc(db, "users", currentUser.uid));
-  const userData = snap.data();
-
+window.createPost = async function() {
   const text = document.getElementById("postText").value;
   const fileInput = document.getElementById("postFile");
-  let fileURL = "";
+  const currentUser = auth.currentUser;
 
+  let fileURL = "";
   if (fileInput.files.length > 0) {
     const file = fileInput.files[0];
     const storageRef = ref(storage, `posts/${currentUser.uid}/${Date.now()}_${file.name}`);
@@ -214,9 +128,11 @@ window.createPost = async function () {
     fileURL = await getDownloadURL(storageRef);
   }
 
+  const userSnap = await getDoc(doc(db, "users", currentUser.uid));
+  const userData = userSnap.data();
   const status = (userData.role === "admin" || userData.role === "owner") ? "approved" : "pending";
 
-  await addDoc(collection(db, "posts"), {
+  await addDoc(collection(db, "schoolPosts"), {
     author: currentUser.uid,
     authorEmail: userData.email,
     text: text,
@@ -228,46 +144,15 @@ window.createPost = async function () {
   document.getElementById("postText").value = "";
   fileInput.value = "";
   alert(status === "approved" ? "Post published!" : "Post sent for approval.");
-  loadPosts();
 };
 
-async function loadPosts() {
-  const postsDiv = document.getElementById("postsList");
-  postsDiv.innerHTML = "Loading...";
-
-  const snap = await getDocs(query(collection(db, "posts"), orderBy("createdAt", "desc")));
-  let html = "<ul>";
-  const currentUserSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
-  const currentUserData = currentUserSnap.data();
-  const isAdmin = currentUserData.role === "admin" || currentUserData.role === "owner";
-
-  snap.forEach(docSnap => {
-    const post = docSnap.data();
-    if (post.status === "approved" || isAdmin) {
-      html += `<li onclick="showFullPost('${docSnap.id}')">
-        <b>${post.authorEmail}</b><br>
-        ${post.text ? post.text : ""}<br>
-        ${post.fileURL ? `<a href="${post.fileURL}" target="_blank">View File</a>` : ""}<br>
-        ${isAdmin && post.status === "pending" ? `<button onclick="approvePost('${docSnap.id}'); event.stopPropagation();">Approve</button>
-        <button onclick="denyPost('${docSnap.id}'); event.stopPropagation();">Deny</button>` : ""}
-        ${isAdmin ? `<button onclick="deletePost('${docSnap.id}'); event.stopPropagation();">Delete</button>` : ""}
-      </li><hr>`;
-    }
-  });
-  html += "</ul>";
-  postsDiv.innerHTML = html;
-}
-
-/* ——— SHARED MEDIA TAB ——— */
-window.createMediaPost = async function () {
-  const currentUser = auth.currentUser;
-  const snap = await getDoc(doc(db, "users", currentUser.uid));
-  const userData = snap.data();
-
+/* ——— SHARED MEDIA POSTS ——— */
+window.createMediaPost = async function() {
   const text = document.getElementById("mediaText").value;
   const fileInput = document.getElementById("mediaFile");
-  let fileURL = "";
+  const currentUser = auth.currentUser;
 
+  let fileURL = "";
   if (fileInput.files.length > 0) {
     const file = fileInput.files[0];
     const storageRef = ref(storage, `media/${currentUser.uid}/${Date.now()}_${file.name}`);
@@ -275,6 +160,8 @@ window.createMediaPost = async function () {
     fileURL = await getDownloadURL(storageRef);
   }
 
+  const userSnap = await getDoc(doc(db, "users", currentUser.uid));
+  const userData = userSnap.data();
   const status = (userData.role === "admin" || userData.role === "owner") ? "approved" : "pending";
 
   await addDoc(collection(db, "mediaPosts"), {
@@ -288,85 +175,148 @@ window.createMediaPost = async function () {
 
   document.getElementById("mediaText").value = "";
   fileInput.value = "";
-  alert(status === "approved" ? "Media published!" : "Media sent for approval.");
-  loadMediaPosts();
+  alert(status === "approved" ? "Post published!" : "Post sent for approval.");
 };
 
-async function loadMediaPosts() {
-  const postsDiv = document.getElementById("mediaList");
-  postsDiv.innerHTML = "Loading...";
+/* ——— THE BOYS CHAT ——— */
+window.sendChatMessage = async function() {
+  const currentUser = auth.currentUser;
+  const userSnap = await getDoc(doc(db, "users", currentUser.uid));
+  const userData = userSnap.data();
+  if (!userData || userData.status !== "approved") {
+    alert("You cannot send messages until approved.");
+    return;
+  }
 
-  const snap = await getDocs(query(collection(db, "mediaPosts"), orderBy("createdAt", "desc")));
-  let html = "<ul>";
+  const textInput = document.getElementById("chatText");
+  const fileInput = document.getElementById("chatFile");
+
+  const text = textInput.value;
+  let fileURL = "";
+
+  if (fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    const storageRef = ref(storage, `chat/${currentUser.uid}/${Date.now()}_${file.name}`);
+    await uploadBytes(storageRef, file);
+    fileURL = await getDownloadURL(storageRef);
+  }
+
+  const isAdmin = userData.role === "admin" || userData.role === "owner";
+  const status = (isAdmin || (!text && fileURL)) ? "approved" : fileURL ? "pending" : "approved";
+
+  await addDoc(collection(db, "chatMessages"), {
+    author: currentUser.uid,
+    authorEmail: userData.email,
+    text: text,
+    fileURL: fileURL,
+    status: status,
+    createdAt: Date.now()
+  });
+
+  textInput.value = "";
+  fileInput.value = "";
+  alert(status === "approved" ? "Message sent!" : "Image sent for approval.");
+  loadChatMessages();
+};
+
+async function loadChatMessages() {
+  const chatDiv = document.getElementById("chatMessages");
+  chatDiv.innerHTML = "Loading...";
+  const snap = await getDocs(query(collection(db, "chatMessages"), orderBy("createdAt")));
   const currentUserSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
   const currentUserData = currentUserSnap.data();
   const isAdmin = currentUserData.role === "admin" || currentUserData.role === "owner";
 
+  let html = "<ul>";
   snap.forEach(docSnap => {
-    const post = docSnap.data();
-    if (post.status === "approved" || isAdmin) {
-      html += `<li onclick="showFullMediaPost('${docSnap.id}')">
-        <b>${post.authorEmail}</b><br>
-        ${post.text ? post.text : ""}<br>
-        ${post.fileURL ? `<a href="${post.fileURL}" target="_blank">View File</a>` : ""}<br>
-        ${isAdmin && post.status === "pending" ? `<button onclick="approveMediaPost('${docSnap.id}'); event.stopPropagation();">Approve</button>
-        <button onclick="denyMediaPost('${docSnap.id}'); event.stopPropagation();">Deny</button>` : ""}
-        ${isAdmin ? `<button onclick="deleteMediaPost('${docSnap.id}'); event.stopPropagation();">Delete</button>` : ""}
+    const msg = docSnap.data();
+    if (msg.status === "approved" || isAdmin) {
+      html += `<li>
+        <b>${msg.authorEmail}</b>: ${msg.text || ""} <br>
+        ${msg.fileURL ? `<img src="${msg.fileURL}" style="max-width:150px; cursor:pointer;" onclick="showFullChatImage('${docSnap.id}')">` : ""}
+        ${isAdmin && msg.status === "pending" ? `<br>
+        <button onclick="approveChatImage('${docSnap.id}'); event.stopPropagation();">Approve</button>
+        <button onclick="denyChatImage('${docSnap.id}'); event.stopPropagation();">Deny</button>` : ""}
+        ${isAdmin ? `<button onclick="deleteChatMessage('${docSnap.id}'); event.stopPropagation();">Delete</button>` : ""}
       </li><hr>`;
     }
   });
   html += "</ul>";
-  postsDiv.innerHTML = html;
+  chatDiv.innerHTML = html;
 }
 
-/* 🔍 FULLSCREEN MEDIA POST */
-window.showFullMediaPost = async function(postId) {
-  const postSnap = await getDoc(doc(db, "mediaPosts", postId));
-  const post = postSnap.data();
-  if (!post) return;
-
-  let content = `<h3>${post.authorEmail}</h3>`;
-  if (post.text) content += `<p>${post.text}</p>`;
-  if (post.fileURL) content += `<img src="${post.fileURL}" style="max-width:90%; max-height:80vh;">`;
+window.showFullChatImage = async function(msgId) {
+  const msgSnap = await getDoc(doc(db, "chatMessages", msgId));
+  const msg = msgSnap.data();
+  if (!msg || !msg.fileURL) return;
 
   const modal = document.createElement("div");
-  modal.id = "fullMediaModal";
+  modal.id = "fullChatImageModal";
   modal.style.position = "fixed";
   modal.style.top = 0;
   modal.style.left = 0;
   modal.style.width = "100%";
   modal.style.height = "100%";
   modal.style.backgroundColor = "rgba(0,0,0,0.8)";
-  modal.style.color = "#fff";
   modal.style.display = "flex";
-  modal.style.flexDirection = "column";
   modal.style.alignItems = "center";
   modal.style.justifyContent = "center";
   modal.style.zIndex = 9999;
-  modal.innerHTML = content + `<br><button onclick="closeFullMediaPost()">Close</button>`;
+  modal.innerHTML = `<img src="${msg.fileURL}" style="max-width:90%; max-height:80vh;">
+                     <br><button onclick="closeFullChatImage()">Close</button>`;
   document.body.appendChild(modal);
 };
 
-window.closeFullMediaPost = function() {
-  const modal = document.getElementById("fullMediaModal");
+window.closeFullChatImage = function() {
+  const modal = document.getElementById("fullChatImageModal");
   if (modal) modal.remove();
 };
 
-/* ——— MEDIA POST ADMIN ACTIONS ——— */
-window.approveMediaPost = async function(postId) {
-  await updateDoc(doc(db, "mediaPosts", postId), { status: "approved" });
-  alert("Media approved!");
-  loadMediaPosts();
+window.approveChatImage = async function(msgId) {
+  await updateDoc(doc(db, "chatMessages", msgId), { status: "approved" });
+  loadChatMessages();
 };
 
-window.denyMediaPost = async function(postId) {
-  await updateDoc(doc(db, "mediaPosts", postId), { status: "denied" });
-  alert("Media denied!");
-  loadMediaPosts();
+window.denyChatImage = async function(msgId) {
+  await updateDoc(doc(db, "chatMessages", msgId), { status: "denied" });
+  loadChatMessages();
 };
 
-window.deleteMediaPost = async function(postId) {
-  await updateDoc(doc(db, "mediaPosts", postId), { status: "deleted" });
-  alert("Media deleted!");
-  loadMediaPosts();
+window.deleteChatMessage = async function(msgId) {
+  await updateDoc(doc(db, "chatMessages", msgId), { status: "deleted" });
+  loadChatMessages();
+};
+
+/* ——— ADMIN PANEL ——— */
+async function loadPendingUsers() {
+  const listDiv = document.getElementById("pendingUsersList");
+  const snap = await getDocs(collection(db, "users"));
+  let html = "<ul>";
+  snap.forEach(docSnap => {
+    const u = docSnap.data();
+    if (u.status === "pending") {
+      html += `<li>${u.email} 
+        <button onclick="approveUser('${docSnap.id}')">Approve</button> 
+        <button onclick="banUser('${docSnap.id}')">Ban</button>
+        <button onclick="makeAdmin('${docSnap.id}')">Make Admin</button>
+      </li>`;
+    }
+  });
+  html += "</ul>";
+  listDiv.innerHTML = html;
+}
+
+window.approveUser = async function(uid) {
+  await updateDoc(doc(db, "users", uid), { status: "approved" });
+  loadPendingUsers();
+};
+
+window.banUser = async function(uid) {
+  await updateDoc(doc(db, "users", uid), { status: "banned" });
+  loadPendingUsers();
+};
+
+window.makeAdmin = async function(uid) {
+  await updateDoc(doc(db, "users", uid), { role: "admin" });
+  loadPendingUsers();
 };
