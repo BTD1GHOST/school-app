@@ -15,12 +15,12 @@ import {
 
 /* 🔥 YOUR FIREBASE CONFIG */
 const firebaseConfig = {
-  apiKey: "PASTE",
-  authDomain: "PASTE",
-  projectId: "PASTE",
-  storageBucket: "PASTE",
-  messagingSenderId: "PASTE",
-  appId: "PASTE"
+  apiKey: "AIzaSyD6rzXchnhijiz1pmNGS-tyvuUmMLR3RNc",
+  authDomain: "school-app-64768.firebaseapp.com",
+  projectId: "school-app-64768",
+  storageBucket: "school-app-64768.firebasestorage.app",
+  messagingSenderId: "721039136368",
+  appId: "1:721039136368:web:cba66a0677cd88a220c6b5"
 };
 
 /* 🔌 CONNECT TO FIREBASE */
