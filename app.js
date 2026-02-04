@@ -10,10 +10,15 @@ import {
   getFirestore,
   doc,
   setDoc,
-  getDoc
+  getDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  updateDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-/* 🔥 FIREBASE CONFIG */
+/* 🔥 YOUR FIREBASE CONFIG */
 const firebaseConfig = {
   apiKey: "AIzaSyD6rzXchnhijiz1pmNGS-tyvuUmMLR3RNc",
   authDomain: "school-app-64768.firebaseapp.com",
@@ -23,7 +28,7 @@ const firebaseConfig = {
   appId: "1:721039136368:web:cba66a0677cd88a220c6b5"
 };
 
-/* 🔌 INIT FIREBASE */
+/* 🔌 CONNECT TO FIREBASE */
 const app = initializeApp(firebaseConfig);
 const auth = getAuth();
 const db = getFirestore();
@@ -36,20 +41,15 @@ window.signup = async function () {
   try {
     const user = await createUserWithEmailAndPassword(auth, email, password);
 
-    // Try to create Firestore document
-    try {
-      await setDoc(doc(db, "users", user.user.uid), {
-        role: "pending",
-        createdAt: Date.now()
-      });
-      alert("Sign Up successful! Wait for approval.");
-    } catch (firestoreErr) {
-      console.error("Firestore error:", firestoreErr);
-      alert("Sign Up succeeded but failed to create Firestore record. Check your Firestore rules!");
-    }
-
-  } catch (err) {
-    alert("Sign Up error: " + err.message);
+    // Create user in database
+    await setDoc(doc(db, "users", user.user.uid), {
+      role: "pending",
+      email: email,
+      createdAt: Date.now()
+    });
+    alert("Sign up successful! Wait for approval.");
+  } catch (error) {
+    alert("Error signing up: " + error.message);
   }
 };
 
@@ -60,8 +60,8 @@ window.login = async function () {
 
   try {
     await signInWithEmailAndPassword(auth, email, password);
-  } catch (err) {
-    alert("Login error: " + err.message);
+  } catch (error) {
+    alert("Error logging in: " + error.message);
   }
 };
 
@@ -76,7 +76,7 @@ async function checkUser(user) {
   const pendingBox = document.getElementById("pendingBox");
   const appBox = document.getElementById("appBox");
 
-  // Hide all sections
+  // Hide everything
   loginBox.style.display = "none";
   pendingBox.style.display = "none";
   appBox.style.display = "none";
@@ -89,13 +89,7 @@ async function checkUser(user) {
   const snap = await getDoc(doc(db, "users", user.uid));
   const data = snap.data();
 
-  if (!data) {
-    // If user exists in Auth but Firestore doc not created
-    pendingBox.style.display = "block";
-    return;
-  }
-
-  if (data.role === "pending") {
+  if (!data || data.role === "pending") {
     pendingBox.style.display = "block";
   } else {
     appBox.style.display = "block";
@@ -107,10 +101,65 @@ onAuthStateChanged(auth, checkUser);
 
 /* 🗂 TAB SWITCHING */
 window.showTab = function (tabId) {
-  const tabs = ["school", "media", "boys", "info"];
+  const tabs = ["school", "media", "boys", "info", "admin"];
   tabs.forEach(id => {
     document.getElementById(id).style.display = "none";
   });
-
   document.getElementById(tabId).style.display = "block";
+
+  if (tabId === "admin") {
+    loadPendingUsers();
+  }
+};
+
+/* ——— ADMIN PANEL ——— */
+
+async function loadPendingUsers() {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return;
+
+  const userSnap = await getDoc(doc(db, "users", currentUser.uid));
+  const userData = userSnap.data();
+
+  if (!userData || (userData.role !== "admin" && userData.role !== "owner")) {
+    document.getElementById("pendingUsersList").innerText = "Access denied.";
+    return;
+  }
+
+  // Query users with role "pending"
+  const q = query(collection(db, "users"), where("role", "==", "pending"));
+  const querySnapshot = await getDocs(q);
+
+  if (querySnapshot.empty) {
+    document.getElementById("pendingUsersList").innerText = "No pending users.";
+    return;
+  }
+
+  let html = "<ul>";
+  querySnapshot.forEach(docSnap => {
+    const user = docSnap.data();
+    html += `
+      <li>
+        ${user.email || docSnap.id} 
+        <button onclick="approveUser('${docSnap.id}')">Approve</button> 
+        <button onclick="denyUser('${docSnap.id}')">Deny</button>
+      </li>
+    `;
+  });
+  html += "</ul>";
+
+  document.getElementById("pendingUsersList").innerHTML = html;
+}
+
+window.approveUser = async function (userId) {
+  await updateDoc(doc(db, "users", userId), { role: "user" });
+  alert("User approved!");
+  loadPendingUsers();
+};
+
+window.denyUser = async function (userId) {
+  // Option: Mark as denied instead of deleting user doc
+  await updateDoc(doc(db, "users", userId), { role: "denied" });
+  alert("User denied!");
+  loadPendingUsers();
 };
