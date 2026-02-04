@@ -105,9 +105,8 @@ async function checkUser(user) {
     pendingBox.style.display = "block";
   } else {
     appBox.style.display = "block";
-    if (document.getElementById("school").style.display !== "none") {
-      loadPosts();
-    }
+    if (document.getElementById("school").style.display !== "none") loadPosts();
+    if (document.getElementById("media").style.display !== "none") loadMediaPosts();
   }
 }
 
@@ -124,10 +123,10 @@ window.showTab = function (tabId) {
 
   if (tabId === "admin") loadPendingUsers();
   if (tabId === "school") loadPosts();
+  if (tabId === "media") loadMediaPosts();
 };
 
 /* ——— ADMIN PANEL ——— */
-
 async function loadPendingUsers() {
   const currentUser = auth.currentUser;
   if (!currentUser) return;
@@ -198,8 +197,7 @@ window.toggleBan = async function(userId, currentStatus) {
   loadPendingUsers();
 };
 
-/* ——— SCHOOL WORK POSTS WITH APPROVAL & FULLSCREEN ——— */
-
+/* ——— SCHOOL WORK POSTS ——— */
 window.createPost = async function () {
   const currentUser = auth.currentUser;
   const snap = await getDoc(doc(db, "users", currentUser.uid));
@@ -260,9 +258,70 @@ async function loadPosts() {
   postsDiv.innerHTML = html;
 }
 
-/* 🔍 FULLSCREEN POST VIEW */
-window.showFullPost = async function(postId) {
-  const postSnap = await getDoc(doc(db, "posts", postId));
+/* ——— SHARED MEDIA TAB ——— */
+window.createMediaPost = async function () {
+  const currentUser = auth.currentUser;
+  const snap = await getDoc(doc(db, "users", currentUser.uid));
+  const userData = snap.data();
+
+  const text = document.getElementById("mediaText").value;
+  const fileInput = document.getElementById("mediaFile");
+  let fileURL = "";
+
+  if (fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    const storageRef = ref(storage, `media/${currentUser.uid}/${Date.now()}_${file.name}`);
+    await uploadBytes(storageRef, file);
+    fileURL = await getDownloadURL(storageRef);
+  }
+
+  const status = (userData.role === "admin" || userData.role === "owner") ? "approved" : "pending";
+
+  await addDoc(collection(db, "mediaPosts"), {
+    author: currentUser.uid,
+    authorEmail: userData.email,
+    text: text,
+    fileURL: fileURL,
+    status: status,
+    createdAt: Date.now()
+  });
+
+  document.getElementById("mediaText").value = "";
+  fileInput.value = "";
+  alert(status === "approved" ? "Media published!" : "Media sent for approval.");
+  loadMediaPosts();
+};
+
+async function loadMediaPosts() {
+  const postsDiv = document.getElementById("mediaList");
+  postsDiv.innerHTML = "Loading...";
+
+  const snap = await getDocs(query(collection(db, "mediaPosts"), orderBy("createdAt", "desc")));
+  let html = "<ul>";
+  const currentUserSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+  const currentUserData = currentUserSnap.data();
+  const isAdmin = currentUserData.role === "admin" || currentUserData.role === "owner";
+
+  snap.forEach(docSnap => {
+    const post = docSnap.data();
+    if (post.status === "approved" || isAdmin) {
+      html += `<li onclick="showFullMediaPost('${docSnap.id}')">
+        <b>${post.authorEmail}</b><br>
+        ${post.text ? post.text : ""}<br>
+        ${post.fileURL ? `<a href="${post.fileURL}" target="_blank">View File</a>` : ""}<br>
+        ${isAdmin && post.status === "pending" ? `<button onclick="approveMediaPost('${docSnap.id}'); event.stopPropagation();">Approve</button>
+        <button onclick="denyMediaPost('${docSnap.id}'); event.stopPropagation();">Deny</button>` : ""}
+        ${isAdmin ? `<button onclick="deleteMediaPost('${docSnap.id}'); event.stopPropagation();">Delete</button>` : ""}
+      </li><hr>`;
+    }
+  });
+  html += "</ul>";
+  postsDiv.innerHTML = html;
+}
+
+/* 🔍 FULLSCREEN MEDIA POST */
+window.showFullMediaPost = async function(postId) {
+  const postSnap = await getDoc(doc(db, "mediaPosts", postId));
   const post = postSnap.data();
   if (!post) return;
 
@@ -270,9 +329,8 @@ window.showFullPost = async function(postId) {
   if (post.text) content += `<p>${post.text}</p>`;
   if (post.fileURL) content += `<img src="${post.fileURL}" style="max-width:90%; max-height:80vh;">`;
 
-  // Show modal
   const modal = document.createElement("div");
-  modal.id = "fullPostModal";
+  modal.id = "fullMediaModal";
   modal.style.position = "fixed";
   modal.style.top = 0;
   modal.style.left = 0;
@@ -285,30 +343,30 @@ window.showFullPost = async function(postId) {
   modal.style.alignItems = "center";
   modal.style.justifyContent = "center";
   modal.style.zIndex = 9999;
-  modal.innerHTML = content + `<br><button onclick="closeFullPost()">Close</button>`;
+  modal.innerHTML = content + `<br><button onclick="closeFullMediaPost()">Close</button>`;
   document.body.appendChild(modal);
 };
 
-window.closeFullPost = function() {
-  const modal = document.getElementById("fullPostModal");
+window.closeFullMediaPost = function() {
+  const modal = document.getElementById("fullMediaModal");
   if (modal) modal.remove();
 };
 
-/* ——— POST ADMIN ACTIONS ——— */
-window.approvePost = async function(postId) {
-  await updateDoc(doc(db, "posts", postId), { status: "approved" });
-  alert("Post approved!");
-  loadPosts();
+/* ——— MEDIA POST ADMIN ACTIONS ——— */
+window.approveMediaPost = async function(postId) {
+  await updateDoc(doc(db, "mediaPosts", postId), { status: "approved" });
+  alert("Media approved!");
+  loadMediaPosts();
 };
 
-window.denyPost = async function(postId) {
-  await updateDoc(doc(db, "posts", postId), { status: "denied" });
-  alert("Post denied!");
-  loadPosts();
+window.denyMediaPost = async function(postId) {
+  await updateDoc(doc(db, "mediaPosts", postId), { status: "denied" });
+  alert("Media denied!");
+  loadMediaPosts();
 };
 
-window.deletePost = async function(postId) {
-  await updateDoc(doc(db, "posts", postId), { status: "deleted" });
-  alert("Post deleted!");
-  loadPosts();
+window.deleteMediaPost = async function(postId) {
+  await updateDoc(doc(db, "mediaPosts", postId), { status: "deleted" });
+  alert("Media deleted!");
+  loadMediaPosts();
 };
