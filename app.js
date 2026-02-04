@@ -14,7 +14,9 @@ import {
   updateDoc,
   collection,
   addDoc,
-  getDocs
+  getDocs,
+  query,
+  where
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import {
   getStorage,
@@ -46,7 +48,7 @@ window.signup = async function() {
 
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
-  // ✅ New users: role = user, status = pending
+  // New users: role=user, status=pending
   await setDoc(doc(db, "users", userCredential.user.uid), {
     email: email,
     role: "user",
@@ -101,27 +103,15 @@ async function checkUser(user) {
     await signOut(auth);
   } else {
     appBox.style.display = "block";
+    if (userData.role === "admin" || userData.role === "owner") {
+      loadAdminPanel();
+      loadPendingPosts();
+    }
   }
 }
 
-/* 🔄 AUTO-REFRESH FOR PENDING USERS */
-let pendingInterval;
-onAuthStateChanged(auth, async (user) => {
-  if (pendingInterval) clearInterval(pendingInterval);
-  checkUser(user);
-
-  if (user) {
-    const userRef = doc(db, "users", user.uid);
-    pendingInterval = setInterval(async () => {
-      const snap = await getDoc(userRef);
-      const data = snap.data();
-      if (data && data.status === "approved") {
-        clearInterval(pendingInterval);
-        checkUser(user);
-      }
-    }, 3000);
-  }
-});
+/* 🔄 RUN WHEN LOGIN STATE CHANGES */
+onAuthStateChanged(auth, checkUser);
 
 /* 🗂 TAB SWITCHING */
 window.showTab = function(tabId) {
@@ -130,7 +120,7 @@ window.showTab = function(tabId) {
   document.getElementById(tabId).style.display = "block";
 };
 
-/* ——— SCHOOL WORK POSTS ——— */
+/* ——— CREATE SCHOOL WORK POST ——— */
 window.createPost = async function() {
   const text = document.getElementById("postText").value;
   const fileInput = document.getElementById("postFile");
@@ -162,7 +152,7 @@ window.createPost = async function() {
   alert(status === "approved" ? "Post published!" : "Post sent for approval.");
 };
 
-/* ——— SHARED MEDIA POSTS ——— */
+/* ——— CREATE SHARED MEDIA POST ——— */
 window.createMediaPost = async function() {
   const text = document.getElementById("mediaText").value;
   const fileInput = document.getElementById("mediaFile");
@@ -234,42 +224,80 @@ window.sendChatMessage = async function() {
 };
 
 /* ——— ADMIN PANEL ——— */
-async function loadPendingUsers() {
-  const listDiv = document.getElementById("pendingUsersList");
+async function loadAdminPanel() {
+  const listDiv = document.getElementById("userList");
   const snap = await getDocs(collection(db, "users"));
   let html = "<ul>";
+
   snap.forEach(docSnap => {
     const u = docSnap.data();
-    if (u.status === "pending") {
-      html += `<li>${u.email} 
-        <button onclick="approveUser('${docSnap.id}')">Approve</button> 
-        <button onclick="banUser('${docSnap.id}')">Ban</button>
-        <button onclick="makeAdmin('${docSnap.id}')">Make Admin</button>
-      </li>`;
-    }
+    html += `<li>
+      ${u.email} | Status: ${u.status} | Role: 
+      <select onchange="changeRole('${docSnap.id}', this.value)">
+        <option value="user" ${u.role==='user'?'selected':''}>User</option>
+        <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+        <option value="owner" ${u.role==='owner'?'selected':''}>Owner</option>
+      </select>
+      <button onclick="approveUser('${docSnap.id}')">Approve</button>
+      <button onclick="banUser('${docSnap.id}')">Ban</button>
+      <button onclick="unbanUser('${docSnap.id}')">Unban</button>
+    </li>`;
   });
+
   html += "</ul>";
   listDiv.innerHTML = html;
 }
 
+/* ——— USER MANAGEMENT ——— */
 window.approveUser = async function(uid) {
-  // ✅ Approve sets role = user, status = approved
   await updateDoc(doc(db, "users", uid), {
     role: "user",
     status: "approved"
   });
-  loadPendingUsers();
+  loadAdminPanel();
 };
 
 window.banUser = async function(uid) {
   await updateDoc(doc(db, "users", uid), { status: "banned" });
-  loadPendingUsers();
+  loadAdminPanel();
 };
 
-window.makeAdmin = async function(uid) {
-  await updateDoc(doc(db, "users", uid), { 
-    role: "admin",
-    status: "approved"
-  });
-  loadPendingUsers();
+window.unbanUser = async function(uid) {
+  await updateDoc(doc(db, "users", uid), { status: "approved" });
+  loadAdminPanel();
 };
+
+window.changeRole = async function(uid, role) {
+  await updateDoc(doc(db, "users", uid), { role: role, status: "approved" });
+  loadAdminPanel();
+};
+
+/* ——— POST APPROVALS ——— */
+async function loadPendingPosts() {
+  const postDiv = document.getElementById("pendingPostsList");
+  const snap = await getDocs(collection(db, "schoolPosts"));
+  let html = "<ul>";
+
+  snap.forEach(docSnap => {
+    const p = docSnap.data();
+    if (p.status === "pending") {
+      html += `<li>${p.authorEmail} | ${p.text || "[File]"} 
+        <button onclick="approvePost('${docSnap.id}')">Approve</button>
+        <button onclick="deletePost('${docSnap.id}')">Delete</button>
+      </li>`;
+    }
+  });
+
+  html += "</ul>";
+  postDiv.innerHTML = html;
+}
+
+window.approvePost = async function(postId) {
+  await updateDoc(doc(db, "schoolPosts", postId), { status: "approved" });
+  loadPendingPosts();
+};
+
+window.deletePost = async function(postId) {
+  await updateDoc(doc(db, "schoolPosts", postId), { status: "deleted" });
+  loadPendingPosts();
+}
