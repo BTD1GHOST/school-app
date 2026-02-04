@@ -178,3 +178,147 @@ window.changeRole = async function(uid, role) {
   await updateDoc(doc(db, "users", uid), { role: role, status: "approved" });
   loadAdminPanel();
 };
+/* ——— POST CREATION ——— */
+window.createPost = async function(tab) {
+  const currentUser = auth.currentUser;
+  const textInput = document.getElementById(tab + "Text");
+  const fileInput = document.getElementById(tab + "File");
+
+  if (!currentUser) return alert("Not logged in.");
+
+  let text = textInput.value || "";
+  let fileURL = "";
+
+  // Upload file if exists
+  if (fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    const storageRef = ref(storage, `posts/${currentUser.uid}/${Date.now()}_${file.name}`);
+    await uploadBytes(storageRef, file);
+    fileURL = await getDownloadURL(storageRef);
+  }
+
+  // Get user role/status
+  const userSnap = await getDoc(doc(db, "users", currentUser.uid));
+  const userData = userSnap.data();
+
+  // Determine post status
+  let status;
+  if (userData.role === "admin" || userData.role === "owner") {
+    status = "approved"; // Admin posts auto-approved
+  } else {
+    status = fileURL ? "pending" : "approved"; // Only images/files pending
+  }
+
+  // Save post
+  await addDoc(collection(db, tab + "Posts"), {
+    author: currentUser.uid,
+    authorEmail: userData.email,
+    text: text,
+    fileURL: fileURL,
+    status: status,
+    createdAt: Date.now()
+  });
+
+  textInput.value = "";
+  fileInput.value = "";
+  alert(status === "approved" ? "Post published!" : "Post sent for approval.");
+};
+
+/* ——— LOAD POSTS ——— */
+async function loadPosts(tab) {
+  const container = document.getElementById(tab + "Container");
+  const snap = await getDocs(collection(db, tab + "Posts"));
+  let html = "";
+
+  snap.forEach(docSnap => {
+    const p = docSnap.data();
+    if (p.status === "approved") {
+      html += `<div>
+        <strong>${p.authorEmail}</strong>: ${p.text || ""}
+        ${p.fileURL ? `<a href="${p.fileURL}" target="_blank">[File]</a>` : ""}
+      </div>`;
+    }
+  });
+
+  container.innerHTML = html;
+}
+
+/* ——— CHAT (The Boys) ——— */
+window.sendChatMessage = async function() {
+  const currentUser = auth.currentUser;
+  const input = document.getElementById("boysText");
+  const fileInput = document.getElementById("boysFile");
+
+  if (!currentUser) return alert("Not logged in.");
+
+  let text = input.value || "";
+  let fileURL = "";
+
+  // Upload image/file if any
+  if (fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    const storageRef = ref(storage, `chat/${currentUser.uid}/${Date.now()}_${file.name}`);
+    await uploadBytes(storageRef, file);
+    fileURL = await getDownloadURL(storageRef);
+  }
+
+  // Get user role/status
+  const userSnap = await getDoc(doc(db, "users", currentUser.uid));
+  const userData = userSnap.data();
+
+  let status;
+  if (userData.role === "admin" || userData.role === "owner") {
+    status = "approved"; // Admin images auto-approved
+  } else {
+    status = fileURL ? "pending" : "approved"; // Only images pending
+  }
+
+  await addDoc(collection(db, "boysChat"), {
+    author: currentUser.uid,
+    authorEmail: userData.email,
+    text: text,
+    fileURL: fileURL,
+    status: status,
+    createdAt: Date.now()
+  });
+
+  input.value = "";
+  fileInput.value = "";
+};
+
+/* ——— LOAD CHAT ——— */
+async function loadChat() {
+  const container = document.getElementById("boysContainer");
+  const snap = await getDocs(collection(db, "boysChat"));
+  let html = "";
+
+  snap.forEach(docSnap => {
+    const c = docSnap.data();
+    if (c.status === "approved") {
+      html += `<div>
+        <strong>${c.authorEmail}</strong>: ${c.text || ""}
+        ${c.fileURL ? `<a href="${c.fileURL}" target="_blank">[File]</a>` : ""}
+      </div>`;
+    }
+  });
+
+  container.innerHTML = html;
+}
+
+/* ——— APPROVE POSTS (ADMIN) ——— */
+window.approvePost = async function(tab, postId) {
+  await updateDoc(doc(db, tab + "Posts", postId), { status: "approved" });
+  loadPosts(tab);
+};
+
+window.deletePost = async function(tab, postId) {
+  await deleteDoc(doc(db, tab + "Posts", postId));
+  loadPosts(tab);
+};
+
+/* ——— AUTOMATIC LOADING INTERVALS ——— */
+setInterval(() => {
+  loadPosts("school");
+  loadPosts("media");
+  loadChat();
+}, 3000); // reload every 3s
