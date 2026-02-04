@@ -3,7 +3,7 @@
 <head>
   <title>School App</title>
   <style>
-    /* Basic styling to separate areas */
+    /* Basic styling */
     #loginBox, #pendingBox, #appBox, #adminPanel {
       margin: 20px;
       padding: 15px;
@@ -27,10 +27,8 @@
 <!-- LOGIN / SIGNUP -->
 <div id="loginBox">
   <h2>Login or Sign Up</h2>
-
   <input id="email" placeholder="Email"><br><br>
   <input id="password" type="password" placeholder="Password"><br><br>
-
   <button onclick="signup()">Sign Up</button>
   <button onclick="login()">Login</button>
 </div>
@@ -53,19 +51,26 @@
 
   <div id="school" class="tab-content" style="display:none;">
     <h3>School Work</h3>
-    <div id="postsContainer">Loading posts...</div>
+    <div id="schoolContainer">Loading posts...</div>
+    <textarea id="schoolText" placeholder="Write post"></textarea><br>
+    <input id="schoolFile" type="file"><br>
+    <button onclick="createPost('school')">Post</button>
   </div>
 
   <div id="media" class="tab-content" style="display:none;">
     <h3>Shared Media</h3>
     <div id="mediaContainer">Loading shared media...</div>
+    <textarea id="mediaText" placeholder="Write post"></textarea><br>
+    <input id="mediaFile" type="file"><br>
+    <button onclick="createPost('media')">Post</button>
   </div>
 
   <div id="boys" class="tab-content" style="display:none;">
     <h3>The Boys</h3>
     <div id="boysContainer">Loading chat messages...</div>
-    <input id="boysMessageInput" placeholder="Type a message">
-    <button onclick="sendMessage()">Send</button>
+    <input id="boysMessageInput" placeholder="Type a message"><br>
+    <input id="boysFile" type="file"><br>
+    <button onclick="sendChatMessage()">Send</button>
   </div>
 
   <div id="info" class="tab-content" style="display:none;">
@@ -84,11 +89,6 @@
 </div>
 
 <!-- FIREBASE LIBRARIES -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
-
-<!-- YOUR SCRIPT -->
 <script type="module" src="app.js"></script>
 
 </body>
