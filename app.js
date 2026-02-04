@@ -14,9 +14,7 @@ import {
   updateDoc,
   collection,
   addDoc,
-  getDocs,
-  query,
-  orderBy
+  getDocs
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import {
   getStorage,
@@ -48,11 +46,11 @@ window.signup = async function() {
 
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
-  // ✅ Correct roles and statuses
+  // ✅ New users: role = user, status = pending
   await setDoc(doc(db, "users", userCredential.user.uid), {
     email: email,
-    role: "user",       // default role
-    status: "pending",  // pending approval
+    role: "user",
+    status: "pending",
     createdAt: Date.now()
   });
 
@@ -108,7 +106,6 @@ async function checkUser(user) {
 
 /* 🔄 AUTO-REFRESH FOR PENDING USERS */
 let pendingInterval;
-
 onAuthStateChanged(auth, async (user) => {
   if (pendingInterval) clearInterval(pendingInterval);
   checkUser(user);
@@ -131,9 +128,6 @@ window.showTab = function(tabId) {
   const tabs = ["school", "media", "boys", "info", "admin"];
   tabs.forEach(t => document.getElementById(t).style.display = "none");
   document.getElementById(tabId).style.display = "block";
-
-  if (tabId === "boys") loadChatMessages();
-  if (tabId === "admin") loadPendingUsers();
 };
 
 /* ——— SCHOOL WORK POSTS ——— */
@@ -152,7 +146,7 @@ window.createPost = async function() {
 
   const userSnap = await getDoc(doc(db, "users", currentUser.uid));
   const userData = userSnap.data();
-  const status = (userData.role === "admin" || userData.role === "owner") ? "approved" : "pending";
+  const status = (userData.role === "admin" || userData.role === "owner") ? "approved" : (fileURL ? "pending" : "approved");
 
   await addDoc(collection(db, "schoolPosts"), {
     author: currentUser.uid,
@@ -184,7 +178,7 @@ window.createMediaPost = async function() {
 
   const userSnap = await getDoc(doc(db, "users", currentUser.uid));
   const userData = userSnap.data();
-  const status = (userData.role === "admin" || userData.role === "owner") ? "approved" : "pending";
+  const status = (userData.role === "admin" || userData.role === "owner") ? "approved" : (fileURL ? "pending" : "approved");
 
   await addDoc(collection(db, "mediaPosts"), {
     author: currentUser.uid,
@@ -212,7 +206,6 @@ window.sendChatMessage = async function() {
 
   const textInput = document.getElementById("chatText");
   const fileInput = document.getElementById("chatFile");
-
   const text = textInput.value;
   let fileURL = "";
 
@@ -224,7 +217,7 @@ window.sendChatMessage = async function() {
   }
 
   const isAdmin = userData.role === "admin" || userData.role === "owner";
-  const status = (isAdmin || (!text && fileURL)) ? "approved" : fileURL ? "pending" : "approved";
+  const status = (isAdmin || (!text && fileURL)) ? "approved" : (fileURL ? "pending" : "approved");
 
   await addDoc(collection(db, "chatMessages"), {
     author: currentUser.uid,
@@ -238,7 +231,6 @@ window.sendChatMessage = async function() {
   textInput.value = "";
   fileInput.value = "";
   alert(status === "approved" ? "Message sent!" : "Image sent for approval.");
-  loadChatMessages();
 };
 
 /* ——— ADMIN PANEL ——— */
@@ -261,7 +253,11 @@ async function loadPendingUsers() {
 }
 
 window.approveUser = async function(uid) {
-  await updateDoc(doc(db, "users", uid), { status: "approved" });
+  // ✅ Approve sets role = user, status = approved
+  await updateDoc(doc(db, "users", uid), {
+    role: "user",
+    status: "approved"
+  });
   loadPendingUsers();
 };
 
@@ -273,7 +269,7 @@ window.banUser = async function(uid) {
 window.makeAdmin = async function(uid) {
   await updateDoc(doc(db, "users", uid), { 
     role: "admin",
-    status: "approved"  // ✅ auto-approve admins
+    status: "approved"
   });
   loadPendingUsers();
 };
