@@ -33,22 +33,31 @@ window.signup = async function () {
   const email = document.getElementById("email").value;
   const password = document.getElementById("password").value;
 
-  const user = await createUserWithEmailAndPassword(auth, email, password);
+  try {
+    const user = await createUserWithEmailAndPassword(auth, email, password);
 
-  // Create user in database
-  await setDoc(doc(db, "users", user.user.uid), {
-    role: "pending",
-    createdAt: Date.now()
-  });
+    // Create user in database
+    await setDoc(doc(db, "users", user.user.uid), {
+      role: "pending",
+      createdAt: Date.now()
+    });
+
+    alert("Sign Up successful! Wait for approval."); // simple feedback
+  } catch (err) {
+    alert(err.message); // show error if signup fails
+  }
 };
 
 /* 🔐 LOGIN */
 window.login = async function () {
-  await signInWithEmailAndPassword(
-    auth,
-    email.value,
-    password.value
-  );
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    alert(err.message); // show error if login fails
+  }
 };
 
 /* 🚪 LOGOUT */
@@ -58,6 +67,10 @@ window.logout = async function () {
 
 /* 👀 CHECK USER STATUS */
 async function checkUser(user) {
+  const loginBox = document.getElementById("loginBox");
+  const pendingBox = document.getElementById("pendingBox");
+  const appBox = document.getElementById("appBox");
+
   // Hide everything
   loginBox.style.display = "none";
   pendingBox.style.display = "none";
@@ -71,6 +84,12 @@ async function checkUser(user) {
   const snap = await getDoc(doc(db, "users", user.uid));
   const data = snap.data();
 
+  if (!data) {
+    // User exists in Auth but not in Firestore
+    pendingBox.style.display = "block";
+    return;
+  }
+
   if (data.role === "pending") {
     pendingBox.style.display = "block";
   } else {
@@ -83,10 +102,10 @@ onAuthStateChanged(auth, checkUser);
 
 /* 🗂 TAB SWITCHING */
 window.showTab = function (tabId) {
-  school.style.display = "none";
-  media.style.display = "none";
-  boys.style.display = "none";
-  info.style.display = "none";
+  const tabs = ["school", "media", "boys", "info"];
+  tabs.forEach(id => {
+    document.getElementById(id).style.display = "none";
+  });
 
   document.getElementById(tabId).style.display = "block";
 };
