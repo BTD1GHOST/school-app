@@ -16,8 +16,7 @@ import {
   getDocs,
   updateDoc,
   addDoc,
-  orderBy,
-  where
+  orderBy
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import {
   getStorage,
@@ -199,7 +198,7 @@ window.toggleBan = async function(userId, currentStatus) {
   loadPendingUsers();
 };
 
-/* ——— SCHOOL WORK POSTS WITH APPROVAL ——— */
+/* ——— SCHOOL WORK POSTS WITH APPROVAL & FULLSCREEN ——— */
 
 window.createPost = async function () {
   const currentUser = auth.currentUser;
@@ -247,13 +246,13 @@ async function loadPosts() {
   snap.forEach(docSnap => {
     const post = docSnap.data();
     if (post.status === "approved" || isAdmin) {
-      html += `<li>
+      html += `<li onclick="showFullPost('${docSnap.id}')">
         <b>${post.authorEmail}</b><br>
         ${post.text ? post.text : ""}<br>
         ${post.fileURL ? `<a href="${post.fileURL}" target="_blank">View File</a>` : ""}<br>
-        ${isAdmin && post.status === "pending" ? `<button onclick="approvePost('${docSnap.id}')">Approve</button>
-        <button onclick="denyPost('${docSnap.id}')">Deny</button>` : ""}
-        ${isAdmin ? `<button onclick="deletePost('${docSnap.id}')">Delete</button>` : ""}
+        ${isAdmin && post.status === "pending" ? `<button onclick="approvePost('${docSnap.id}'); event.stopPropagation();">Approve</button>
+        <button onclick="denyPost('${docSnap.id}'); event.stopPropagation();">Deny</button>` : ""}
+        ${isAdmin ? `<button onclick="deletePost('${docSnap.id}'); event.stopPropagation();">Delete</button>` : ""}
       </li><hr>`;
     }
   });
@@ -261,6 +260,41 @@ async function loadPosts() {
   postsDiv.innerHTML = html;
 }
 
+/* 🔍 FULLSCREEN POST VIEW */
+window.showFullPost = async function(postId) {
+  const postSnap = await getDoc(doc(db, "posts", postId));
+  const post = postSnap.data();
+  if (!post) return;
+
+  let content = `<h3>${post.authorEmail}</h3>`;
+  if (post.text) content += `<p>${post.text}</p>`;
+  if (post.fileURL) content += `<img src="${post.fileURL}" style="max-width:90%; max-height:80vh;">`;
+
+  // Show modal
+  const modal = document.createElement("div");
+  modal.id = "fullPostModal";
+  modal.style.position = "fixed";
+  modal.style.top = 0;
+  modal.style.left = 0;
+  modal.style.width = "100%";
+  modal.style.height = "100%";
+  modal.style.backgroundColor = "rgba(0,0,0,0.8)";
+  modal.style.color = "#fff";
+  modal.style.display = "flex";
+  modal.style.flexDirection = "column";
+  modal.style.alignItems = "center";
+  modal.style.justifyContent = "center";
+  modal.style.zIndex = 9999;
+  modal.innerHTML = content + `<br><button onclick="closeFullPost()">Close</button>`;
+  document.body.appendChild(modal);
+};
+
+window.closeFullPost = function() {
+  const modal = document.getElementById("fullPostModal");
+  if (modal) modal.remove();
+};
+
+/* ——— POST ADMIN ACTIONS ——— */
 window.approvePost = async function(postId) {
   await updateDoc(doc(db, "posts", postId), { status: "approved" });
   alert("Post approved!");
